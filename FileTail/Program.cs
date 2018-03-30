@@ -1,6 +1,7 @@
 ﻿
 using System;
 using System.Collections.Concurrent;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
@@ -46,33 +47,36 @@ namespace FileTail {
                     var addedFiles = nextCurrentFiles.Select(x => x.Name).Where(x => !lastCurrentFiles.Select(y => y.Name).Contains(x));
                     var deletedFiles = lastCurrentFiles.Select(x => x.Name).Where(x => !nextCurrentFiles.Select(y => y.Name).Contains(x));
 
+                    //var addedFileInfo = nextCurrentFiles.Where()
+
                     Console.WriteLine($"Added {addedFiles.Count()}");
                     Console.WriteLine($"Removed {deletedFiles.Count()}");
 
-                    var newResult = await tailer.Start(ChangedFiles(lastCurrentFiles, nextCurrentFiles));
-                    Reconcile(lastResult, newResult);
+                    var changedFilesResult = await tailer.Start(ChangedFiles(lastCurrentFiles, nextCurrentFiles));
+                    Reconcile(lastResult, changedFilesResult);
 
-                    lastResult = newResult;
+                    lastResult = changedFilesResult;
                 });
             }
         }
 
         private static FileInfo[] ChangedFiles(FileInfo[] oldFiles, FileInfo[] newFiles) {
-            return new FileInfo[0];
-        }
-
-        private static void Reconcile((FileInfo[] fileInfo, ConcurrentBag<Task<(string path, int lines)>> snapShot) oldResult, (FileInfo[] fileInfo, ConcurrentBag<Task<(string path, int lines)>> snapShot) newResult) {
-
-            for (int i = 0; i < oldResult.fileInfo.Length; i++) {
-                var oldfile = oldResult.fileInfo[i];
-                for (int j = 0; j < newResult.fileInfo.Length; j++) {
-                    var newFile = newResult.fileInfo[j];
+            var fileInfo = new List<FileInfo>();
+            for (int i = 0; i < oldFiles.Length; i++) {
+                var oldfile = oldFiles[i];
+                for (int j = 0; j < newFiles.Length; j++) {
+                    var newFile = newFiles[j];
 
                     if (oldfile.FullName == newFile.FullName && oldfile.LastWriteTime != newFile.LastWriteTime) {
-
+                        fileInfo.Add(newFile);
                     }
                 }
             }
+
+            return fileInfo.ToArray();
+        }
+
+        private static void Reconcile(ConcurrentDictionary<string, int> allFilesStats, ConcurrentDictionary<string, int> newFiles) {
 
         }
 

@@ -1,5 +1,6 @@
 ﻿
 using System.Collections.Concurrent;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Threading;
@@ -13,20 +14,20 @@ namespace FileTail {
             this.directoryInfo = directoryInfo;
         }
 
-        public async Task<(FileInfo[] fileInfo, ConcurrentBag<Task<(string path, int lines)>> snapShot)> Start(FileInfo[] fileInformation) {  
-            ConcurrentBag<Task< (string path, int lines) >> snapShot = new ConcurrentBag<Task<(string path, int lines)>>(); 
-
+        public async Task<ConcurrentDictionary<string, int>> Start(FileInfo[] fileInformation) {  
+            var snapShot = new List<Task>(); 
+            ConcurrentDictionary<string, int> fileLines = new ConcurrentDictionary<string, int>();
             foreach (var fileInfo in fileInformation) {
                 snapShot.Add(
                         Task.Factory.StartNew(
-                            () => (fileInfo.Name, File.ReadLines(fileInfo.Name).Count()),
+                            () => { fileLines[fileInfo.Name] = File.ReadLines(fileInfo.Name).Count(); },
                             cancellationTokenSource.Token
                         )
                     );
             }
 
             await Task.WhenAll(snapShot);
-            return (fileInformation, snapShot);
+            return fileLines;
         }
 
         public void Interrupt() {
