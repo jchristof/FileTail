@@ -13,8 +13,7 @@ namespace FileTail {
             this.directoryInfo = directoryInfo;
         }
 
-        public async Task<(FileInfo[] fileInfo, ConcurrentBag<Task<(string path, int lines)>> snapShot)> Start() {
-            FileInfo[] fileInformation = directoryInfo.GetFiles(pattern, SearchOption.TopDirectoryOnly);
+        public async Task<(FileInfo[] fileInfo, ConcurrentBag<Task<(string path, int lines)>> snapShot)> Start(FileInfo[] fileInformation) {  
             ConcurrentBag<Task< (string path, int lines) >> snapShot = new ConcurrentBag<Task<(string path, int lines)>>(); 
 
             foreach (var fileInfo in fileInformation) {
