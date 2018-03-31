@@ -1,4 +1,5 @@
 ﻿
+using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
@@ -8,15 +9,15 @@ using System.Threading.Tasks;
 
 namespace FileTail {
     public class Tailer {
-        public Tailer(string path, string pattern, DirectoryInfo directoryInfo) {
-            this.path = path;
-            this.pattern = pattern;
-            this.directoryInfo = directoryInfo;
-        }
 
+        /// <summary>
+        /// Fetch file line count for each of the files
+        /// </summary>
+        /// <param name="fileInformation"></param>
+        /// <returns></returns>
         public async Task<ConcurrentDictionary<string, int>> Start(FileInfo[] fileInformation) {  
             var snapShot = new List<Task>(); 
-            ConcurrentDictionary<string, int> fileLines = new ConcurrentDictionary<string, int>();
+            var fileLines = new ConcurrentDictionary<string, int>();
             foreach (var fileInfo in fileInformation) {
                 snapShot.Add(
                         Task.Factory.StartNew(
@@ -39,12 +40,38 @@ namespace FileTail {
         }
 
         private CancellationTokenSource cancellationTokenSource = new CancellationTokenSource();
-        private readonly string path;
-        private readonly string pattern;
-        private readonly DirectoryInfo directoryInfo;
 
-        public void Reconcile((FileInfo[] fileInfo, ConcurrentBag<Task<(string path, int lines)>> snapShot) results) {
-            
+        public static FileInfo[] ChangedFiles(FileInfo[] oldFiles, FileInfo[] newFiles) {
+            var fileInfo = new List<FileInfo>();
+            for (int i = 0; i < oldFiles.Length; i++) {
+                var oldfile = oldFiles[i];
+                for (int j = 0; j < newFiles.Length; j++) {
+                    var newFile = newFiles[j];
+
+                    if (oldfile.FullName == newFile.FullName && oldfile.LastWriteTime != newFile.LastWriteTime) {
+                        fileInfo.Add(newFile);
+                    }
+                }
+            }
+
+            return fileInfo.ToArray();
+        }
+
+        public static void Report(IDictionary<string, int> allFilesStats, IDictionary<string, int> changedFiles) {
+            foreach (KeyValuePair<string, int> keyValuePair in changedFiles) {
+                if (!allFilesStats.ContainsKey(keyValuePair.Key))
+                    continue;
+
+                var oldSize = allFilesStats[keyValuePair.Key];
+                var newSize = keyValuePair.Value;
+
+                var deltaSize = newSize - oldSize;
+
+                if (deltaSize == 0)
+                    return;
+
+                Console.WriteLine($"{keyValuePair.Key} {newSize - oldSize:+0;-#}");
+            }
         }
     }
 }

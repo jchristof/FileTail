@@ -9,7 +9,7 @@ using System.Threading.Tasks;
 namespace FileTail {
     internal class Program {
         public static async Task Main() {
-            Tailer tailer = new Tailer(".", "*.*", new DirectoryInfo("."));
+            Tailer tailer = new Tailer();
             
             await Run(tailer);
             //The program takes 2 arguments, the directory to watch and a file pattern, example: program.exe "c:\file folder" *.txt
@@ -67,51 +67,37 @@ namespace FileTail {
                         }
                     }
 
-                    var changedFilesResult = await tailer.Start(ChangedFiles(lastCurrentFiles, nextCurrentFiles));
+                    var changedFileInfos = Tailer.ChangedFiles(lastCurrentFiles, nextCurrentFiles);
+                    var changedFilesResult = await tailer.Start(changedFileInfos);
 
-                    Reconcile(lastResult, changedFilesResult);
+                    Tailer.Report(lastResult, changedFilesResult);
 
-                    lastCurrentFiles = nextCurrentFiles;
-                    lastResult = Merge(changedFilesResult, lastResult);
+                    var unaccountedForFiles = UnaccountedForFiles(changedFileInfos, changedFilesResult);
+
+                    lastCurrentFiles = NextFilesToCheck(nextCurrentFiles, unaccountedForFiles);
+
+                    lastResult = Merge(changedFilesResult, lastResult) as ConcurrentDictionary<string, int>;
                 });
             }
         }
 
-        public static ConcurrentDictionary<TKey, TValue> Merge<TKey, TValue>(ConcurrentDictionary<TKey, TValue> dictA, ConcurrentDictionary<TKey, TValue> dictB){
+        static FileInfo[] NextFilesToCheck(FileInfo[] currentFiles, FileInfo[] unaccountedForFiles) {
+            return currentFiles;
+        }
+
+        static FileInfo[] UnaccountedForFiles(FileInfo[] fileInfos, ConcurrentDictionary<string, int> changedFiles) {
+            var unaccountedForFiles = new List<FileInfo>();
+
+            foreach (FileInfo fileInfo in fileInfos) {
+                if(!changedFiles.ContainsKey(fileInfo.Name))
+                    unaccountedForFiles.Add(fileInfo);
+            }
+
+            return unaccountedForFiles.ToArray();
+        }
+
+        public static IDictionary<TKey, TValue> Merge<TKey, TValue>(IDictionary<TKey, TValue> dictA, IDictionary<TKey, TValue> dictB){
             return new ConcurrentDictionary<TKey, TValue>(dictA.Keys.Union(dictB.Keys).ToDictionary(k => k, k => dictA.ContainsKey(k) ? dictA[k] : dictB[k]));
-        }
-
-        private static FileInfo[] ChangedFiles(FileInfo[] oldFiles, FileInfo[] newFiles) {
-            var fileInfo = new List<FileInfo>();
-            for (int i = 0; i < oldFiles.Length; i++) {
-                var oldfile = oldFiles[i];
-                for (int j = 0; j < newFiles.Length; j++) {
-                    var newFile = newFiles[j];
-
-                    if (oldfile.FullName == newFile.FullName && oldfile.LastWriteTime != newFile.LastWriteTime) {
-                        fileInfo.Add(newFile);
-                    }
-                }
-            }
-
-            return fileInfo.ToArray();
-        }
-
-        private static void Reconcile(ConcurrentDictionary<string, int> allFilesStats, ConcurrentDictionary<string, int> changedFiles) {
-            foreach (KeyValuePair<string, int> keyValuePair in changedFiles) {
-                if(!allFilesStats.ContainsKey(keyValuePair.Key))
-                    continue;
-
-                var oldSize = allFilesStats[keyValuePair.Key];
-                var newSize = keyValuePair.Value;
-
-                var deltaSize = newSize - oldSize;
-
-                if (deltaSize == 0)
-                    return;
-
-                Console.WriteLine($"{keyValuePair.Key} {newSize - oldSize:+0;-#}");
-            }
         }
 
     }
