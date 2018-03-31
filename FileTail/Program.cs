@@ -38,26 +38,47 @@ namespace FileTail {
             var lastCurrentFiles = directoryInfo.GetFiles("*.*", SearchOption.TopDirectoryOnly);
             var lastResult = await tailer.Start(lastCurrentFiles);
 
+            Console.WriteLine("Initial files:");
+            foreach (KeyValuePair<string, int> keyValuePair in lastResult) {
+                Console.WriteLine($"{keyValuePair.Key} {keyValuePair.Value}");
+            }
+
             while (true) {
                 await Task.Delay(TenSeconds).ContinueWith(async task => {
                     tailer.Interrupt();
 
                     var nextCurrentFiles = directoryInfo.GetFiles("*.*", SearchOption.TopDirectoryOnly);
 
-                    var addedFiles = nextCurrentFiles.Select(x => x.Name).Where(x => !lastCurrentFiles.Select(y => y.Name).Contains(x));
-                    var deletedFiles = lastCurrentFiles.Select(x => x.Name).Where(x => !nextCurrentFiles.Select(y => y.Name).Contains(x));
+                    var addedFiles = nextCurrentFiles.Select(x => x.Name).Where(x => !lastCurrentFiles.Select(y => y.Name).Contains(x)).ToList();
+                    var removedFiles = lastCurrentFiles.Select(x => x.Name).Where(x => !nextCurrentFiles.Select(y => y.Name).Contains(x)).ToList();
 
-                    //var addedFileInfo = nextCurrentFiles.Where()
+                    if (addedFiles.Any()) {
+                        Console.WriteLine("Added");
+                        foreach (string addedFile in addedFiles) {
+                            Console.WriteLine($"{addedFile}");
+                        }
+                    }
 
-                    Console.WriteLine($"Added {addedFiles.Count()}");
-                    Console.WriteLine($"Removed {deletedFiles.Count()}");
+
+                    if (removedFiles.Any()) {
+                        Console.WriteLine("Removed");
+                        foreach (string removed in removedFiles) {
+                            Console.WriteLine($"{removed}");
+                        }
+                    }
 
                     var changedFilesResult = await tailer.Start(ChangedFiles(lastCurrentFiles, nextCurrentFiles));
+
                     Reconcile(lastResult, changedFilesResult);
 
-                    lastResult = changedFilesResult;
+                    lastCurrentFiles = nextCurrentFiles;
+                    lastResult = Merge(changedFilesResult, lastResult);
                 });
             }
+        }
+
+        public static ConcurrentDictionary<TKey, TValue> Merge<TKey, TValue>(ConcurrentDictionary<TKey, TValue> dictA, ConcurrentDictionary<TKey, TValue> dictB){
+            return new ConcurrentDictionary<TKey, TValue>(dictA.Keys.Union(dictB.Keys).ToDictionary(k => k, k => dictA.ContainsKey(k) ? dictA[k] : dictB[k]));
         }
 
         private static FileInfo[] ChangedFiles(FileInfo[] oldFiles, FileInfo[] newFiles) {
@@ -76,8 +97,21 @@ namespace FileTail {
             return fileInfo.ToArray();
         }
 
-        private static void Reconcile(ConcurrentDictionary<string, int> allFilesStats, ConcurrentDictionary<string, int> newFiles) {
+        private static void Reconcile(ConcurrentDictionary<string, int> allFilesStats, ConcurrentDictionary<string, int> changedFiles) {
+            foreach (KeyValuePair<string, int> keyValuePair in changedFiles) {
+                if(!allFilesStats.ContainsKey(keyValuePair.Key))
+                    continue;
 
+                var oldSize = allFilesStats[keyValuePair.Key];
+                var newSize = keyValuePair.Value;
+
+                var deltaSize = newSize - oldSize;
+
+                if (deltaSize == 0)
+                    return;
+
+                Console.WriteLine($"{keyValuePair.Key} {newSize - oldSize:+0;-#}");
+            }
         }
 
     }

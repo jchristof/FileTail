@@ -20,7 +20,9 @@ namespace FileTail {
             foreach (var fileInfo in fileInformation) {
                 snapShot.Add(
                         Task.Factory.StartNew(
-                            () => { fileLines[fileInfo.Name] = File.ReadLines(fileInfo.Name).Count(); },
+                                              () => {
+                                                  fileLines[fileInfo.Name] = File.ReadLines(fileInfo.Name).Count();
+                                              },
                             cancellationTokenSource.Token
                         )
                     );
