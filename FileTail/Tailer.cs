@@ -54,15 +54,12 @@ namespace FileTail {
 
         private CancellationTokenSource cancellationTokenSource = new CancellationTokenSource();
 
-
-
         protected virtual void Dispose(bool disposing) {
             if (!disposing)
                 return;
 
             cancellationTokenSource.Cancel();
             cancellationTokenSource.Dispose();
-
         }
 
         public void Dispose() {
