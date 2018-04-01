@@ -31,24 +31,31 @@ namespace FileTail {
 //            var searchPattern = path == args[1] ? args[1] : args[2];
         }
 
-        private const int TenSeconds = 10000;
+        private const int TEN_SECONDS = 10000;
 
         private static async Task Run(Tailer tailer) {
-            var directoryInfo = new DirectoryInfo(".");
-            var lastCurrentFiles = directoryInfo.GetFiles("*.*", SearchOption.TopDirectoryOnly);
-            var lastResult = await tailer.Start(lastCurrentFiles);
+            try {
+                var directoryInfo = new DirectoryInfo(@".");
+                var lastCurrentFiles = directoryInfo.GetFiles("*.*", SearchOption.TopDirectoryOnly);
 
-            Console.WriteLine("Initial files:");
-            foreach (KeyValuePair<string, int> keyValuePair in lastResult) {
-                Console.WriteLine($"{keyValuePair.Key} {keyValuePair.Value}");
-            }
+                var lastResult = await tailer.CollectFileSizes(lastCurrentFiles);
 
-            while (true) {
-                await Task.Delay(TenSeconds).ContinueWith(async task => {
+                Console.WriteLine("Initial files:");
+                foreach (KeyValuePair<string, int> keyValuePair in lastResult) {
+                    Console.WriteLine($"{keyValuePair.Key} {keyValuePair.Value}");
+                }
+
+                while (true) {
+                    await Task.Delay(TEN_SECONDS);
+                    Console.Write("X");
+
+                    //interrupt any file line counting tasks which are pending
                     tailer.Interrupt();
 
+                    //inventory the directory again
                     var nextCurrentFiles = directoryInfo.GetFiles("*.*", SearchOption.TopDirectoryOnly);
 
+                    //identify added or removed files
                     var addedFiles = nextCurrentFiles.Select(x => x.Name).Where(x => !lastCurrentFiles.Select(y => y.Name).Contains(x)).ToList();
                     var removedFiles = lastCurrentFiles.Select(x => x.Name).Where(x => !nextCurrentFiles.Select(y => y.Name).Contains(x)).ToList();
 
@@ -59,7 +66,6 @@ namespace FileTail {
                         }
                     }
 
-
                     if (removedFiles.Any()) {
                         Console.WriteLine("Removed");
                         foreach (string removed in removedFiles) {
@@ -67,35 +73,77 @@ namespace FileTail {
                         }
                     }
 
+                    //files with differing modified times
                     var changedFileInfos = Tailer.ChangedFiles(lastCurrentFiles, nextCurrentFiles);
-                    var changedFilesResult = await tailer.Start(changedFileInfos);
 
+                    //collect the file sizes of the changed files
+                    var changedFilesResult = await tailer.CollectFileSizes(changedFileInfos);
+
+                    //report file size changes
                     Tailer.Report(lastResult, changedFilesResult);
 
+                    //identify files that were modified but couldn't be counted
                     var unaccountedForFiles = UnaccountedForFiles(changedFileInfos, changedFilesResult);
 
+                    //next set of files to check
                     lastCurrentFiles = NextFilesToCheck(nextCurrentFiles, unaccountedForFiles);
 
+                    //produce a current record of files and their line sizes
                     lastResult = Merge(changedFilesResult, lastResult) as ConcurrentDictionary<string, int>;
-                });
+                    
+                }
+            }
+            catch (Exception e) {
+                
             }
         }
 
+        /// <summary>
+        /// Create a new list of files to check by mering all current files plus an files that weren't account for 
+        /// in the previous check. FileInfo from an unaccounted for file replaces the current FileInfo for that file.
+        /// </summary>
+        /// <param name="currentFiles"></param>
+        /// <param name="unaccountedForFiles"></param>
+        /// <returns></returns>
         static FileInfo[] NextFilesToCheck(FileInfo[] currentFiles, FileInfo[] unaccountedForFiles) {
-            return currentFiles;
+            var currentFileList = currentFiles.ToList();
+
+            foreach (FileInfo unaccountedForFile in unaccountedForFiles) {
+                var replaceFile = currentFileList.FirstOrDefault(x => x.FullName == unaccountedForFile.FullName);
+                if (replaceFile != null) {
+                    currentFileList.Remove(replaceFile);
+                    currentFileList.Add(unaccountedForFile);
+                }
+            }
+            return currentFileList.ToArray();
         }
 
-        static FileInfo[] UnaccountedForFiles(FileInfo[] fileInfos, ConcurrentDictionary<string, int> changedFiles) {
+        /// <summary>
+        /// Find any fileInfos files that are not accounted for in finalnameAndSize
+        /// </summary>
+        /// <param name="fileInfos"></param>
+        /// <param name="filenameAndSize"></param>
+        /// <returns></returns>
+        static FileInfo[] UnaccountedForFiles(FileInfo[] fileInfos, ConcurrentDictionary<string, int> filenameAndSize) {
+
             var unaccountedForFiles = new List<FileInfo>();
 
             foreach (FileInfo fileInfo in fileInfos) {
-                if(!changedFiles.ContainsKey(fileInfo.Name))
+                if(!filenameAndSize.ContainsKey(fileInfo.Name))
                     unaccountedForFiles.Add(fileInfo);
             }
 
             return unaccountedForFiles.ToArray();
         }
 
+        /// <summary>
+        /// Merge dictionaries. When keys collide, dictA kvp wins.
+        /// </summary>
+        /// <typeparam name="TKey"></typeparam>
+        /// <typeparam name="TValue"></typeparam>
+        /// <param name="dictA"></param>
+        /// <param name="dictB"></param>
+        /// <returns></returns>
         public static IDictionary<TKey, TValue> Merge<TKey, TValue>(IDictionary<TKey, TValue> dictA, IDictionary<TKey, TValue> dictB){
             return new ConcurrentDictionary<TKey, TValue>(dictA.Keys.Union(dictB.Keys).ToDictionary(k => k, k => dictA.ContainsKey(k) ? dictA[k] : dictB[k]));
         }

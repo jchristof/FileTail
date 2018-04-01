@@ -15,14 +15,19 @@ namespace FileTail {
         /// </summary>
         /// <param name="fileInformation"></param>
         /// <returns></returns>
-        public async Task<ConcurrentDictionary<string, int>> Start(FileInfo[] fileInformation) {  
+        public async Task<ConcurrentDictionary<string, int>> CollectFileSizes(FileInfo[] fileInformation) {  
             var snapShot = new List<Task>(); 
             var fileLines = new ConcurrentDictionary<string, int>();
             foreach (var fileInfo in fileInformation) {
                 snapShot.Add(
                         Task.Factory.StartNew(
                                               () => {
-                                                  fileLines[fileInfo.Name] = File.ReadLines(fileInfo.Name).Count();
+                                                  try {
+                                                      fileLines[fileInfo.Name] = File.ReadLines(fileInfo.Name).Count();
+                                                  }
+                                                  catch (Exception e) {
+                                                        
+                                                  }
                                               },
                             cancellationTokenSource.Token
                         )
@@ -49,7 +54,7 @@ namespace FileTail {
                     var newFile = newFiles[j];
 
                     if (oldfile.FullName == newFile.FullName && oldfile.LastWriteTime != newFile.LastWriteTime) {
-                        fileInfo.Add(newFile);
+                        fileInfo.Add(oldfile);
                     }
                 }
             }
