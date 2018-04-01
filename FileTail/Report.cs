@@ -6,6 +6,10 @@ using System.Linq;
 namespace FileTail {
     public static class Report {
 
+        /// <summary>
+        /// Write file names and line sizes
+        /// </summary>
+        /// <param name="fileLineSizeCollection"></param>
         public static void FileLineCounts(IDictionary<string, int> fileLineSizeCollection) {
             Console.WriteLine("Initial files:");
             foreach (KeyValuePair<string, int> keyValuePair in fileLineSizeCollection) {
@@ -13,6 +17,10 @@ namespace FileTail {
             }
         }
 
+        /// <summary>
+        /// Write files added to the directory
+        /// </summary>
+        /// <param name="filesAdded"></param>
         public static void FilesAdded(IList<string> filesAdded) {
             if (filesAdded == null || !filesAdded.Any())
                 return;
@@ -24,6 +32,10 @@ namespace FileTail {
             }
         }
 
+        /// <summary>
+        /// Write files removed from the directory
+        /// </summary>
+        /// <param name="filesRemoved"></param>
         public static void FilesRemoved(IEnumerable<string> filesRemoved) {
             if (filesRemoved == null || !filesRemoved.Any())
                 return;
@@ -34,12 +46,17 @@ namespace FileTail {
             }
         }
 
-        public static void FileLineCountDelta(IDictionary<string, int> allFilesStats, IDictionary<string, int> changedFiles) {
+        /// <summary>
+        /// Write line count changes of modified files
+        /// </summary>
+        /// <param name="allFiles"></param>
+        /// <param name="changedFiles"></param>
+        public static void FileLineCountDelta(IDictionary<string, int> allFiles, IDictionary<string, int> changedFiles) {
             foreach (KeyValuePair<string, int> keyValuePair in changedFiles) {
-                if (!allFilesStats.ContainsKey(keyValuePair.Key))
+                if (!allFiles.ContainsKey(keyValuePair.Key))
                     continue;
 
-                var oldSize = allFilesStats[keyValuePair.Key];
+                var oldSize = allFiles[keyValuePair.Key];
                 var newSize = keyValuePair.Value;
 
                 var deltaSize = newSize - oldSize;
