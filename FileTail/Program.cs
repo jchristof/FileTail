@@ -39,7 +39,7 @@ namespace FileTail {
         /// </summary>
         /// <param name="path">Directory path</param>
         /// <param name="pattern">Filter pattern</param>
-        /// <returns>An awaitable</returns>
+        /// <returns>An awaitable </returns>
         private static async Task Run(string path, string pattern) {
             try {
                 var fileWatcher = new FilesWatcher(path, pattern);
@@ -61,6 +61,9 @@ namespace FileTail {
 
                     Report.FilesAdded(fileWatcher.AddedFiles.ToList());
                     Report.FilesRemoved(fileWatcher.RemovedFiles.ToList());
+
+                    //remove deleted files from the file line results
+                    lastResult = RemoveDeleted(fileWatcher.RemovedFiles, lastResult);
 
                     //files with differing modified times
                     var changedFileInfos = fileWatcher.ModifiedFiles();
@@ -93,7 +96,7 @@ namespace FileTail {
         /// <param name="fileInformation">List of files to collect line sizes on</param>
         /// <param name="time">Complete in this number of milliseconds</param>
         /// <returns>Scanned files and their line sizes</returns>
-        public static async Task<ConcurrentDictionary<string, int>> CollectFileSizes(FileInfo[] fileInformation, int time) {
+        private static async Task<ConcurrentDictionary<string, int>> CollectFileSizes(FileInfo[] fileInformation, int time) {
             var snapShot = new List<Task>();
             var fileLines = new ConcurrentDictionary<string, int>();
 
@@ -125,12 +128,29 @@ namespace FileTail {
         }
 
         /// <summary>
+        /// Remove deleted file entries from the results table
+        /// </summary>
+        /// <param name="removedFiles"></param>
+        /// <param name="fileAndLineSize"></param>
+        /// <returns>File and line size collection of existing files</returns>
+        private static ConcurrentDictionary<string, int> RemoveDeleted(IEnumerable<string> removedFiles, ConcurrentDictionary<string, int> fileAndLineSize) {
+            foreach (string removedFile in removedFiles) {
+                if (fileAndLineSize.ContainsKey(removedFile)) {
+                    
+                    fileAndLineSize.TryRemove(removedFile, out int value);
+                }
+            }
+
+            return fileAndLineSize;
+        }
+
+        /// <summary>
         /// Find any fileInfos files that are not accounted for in finalnameAndSize
         /// </summary>
         /// <param name="fileInfos">Files that were scanned</param>
         /// <param name="filenameAndSize">Scanned files and their line sizes</param>
         /// <returns>Files unaccounted for in the name and line size collection</returns>
-        public static FileInfo[] UnaccountedForFiles(FileInfo[] fileInfos, ConcurrentDictionary<string, int> filenameAndSize) {
+        private static FileInfo[] UnaccountedForFiles(FileInfo[] fileInfos, ConcurrentDictionary<string, int> filenameAndSize) {
 
             var unaccountedForFiles = new List<FileInfo>();
 
@@ -150,7 +170,7 @@ namespace FileTail {
         /// <param name="dictA"></param>
         /// <param name="dictB"></param>
         /// <returns>Merged dictionary</returns>
-        public static IDictionary<TKey, TValue> Merge<TKey, TValue>(IDictionary<TKey, TValue> dictA, IDictionary<TKey, TValue> dictB) {
+        private static IDictionary<TKey, TValue> Merge<TKey, TValue>(IDictionary<TKey, TValue> dictA, IDictionary<TKey, TValue> dictB) {
             return new ConcurrentDictionary<TKey, TValue>(dictA.Keys.Union(dictB.Keys).ToDictionary(k => k, k => dictA.ContainsKey(k) ? dictA[k] : dictB[k]));
         }
     }

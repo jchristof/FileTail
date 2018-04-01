@@ -26,6 +26,9 @@ namespace FileTail {
         public IEnumerable<string> AddedFiles { get; private set; }
         public IEnumerable<string> RemovedFiles { get; private set; }
 
+        /// <summary>
+        /// Collect the directory's files. Update removed and added files
+        /// </summary>
         public void Scan() {
             currentFiles = directoryInfo.GetFiles(filter, SearchOption.TopDirectoryOnly);
 
@@ -33,6 +36,10 @@ namespace FileTail {
             RemovedFiles = previousFiles.Select(x => x.FullName).Where(x => !currentFiles.Select(y => y.FullName).Contains(x));
         }
 
+        /// <summary>
+        /// Return a list of modified files
+        /// </summary>
+        /// <returns>Modified files</returns>
         public FileInfo[] ModifiedFiles() {
             var fileInfo = new List<FileInfo>();
 
@@ -47,9 +54,15 @@ namespace FileTail {
                 }
             }
 
+            fileInfo.AddRange(currentFiles.Where(x => AddedFiles.Contains(x.FullName)));
+
             return fileInfo.ToArray();
         }
 
+        /// <summary>
+        /// Give unaccounted for files the opportunity to be scanned again on the next collection pass
+        /// </summary>
+        /// <param name="unaccountedFiles"></param>
         public void UnaccountedFiles(FileInfo[] unaccountedFiles) {
             var currentFileList = currentFiles.ToList();
 
